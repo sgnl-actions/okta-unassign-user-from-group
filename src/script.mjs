@@ -1,100 +1,144 @@
 /**
- * SGNL Job Template
+ * Okta Unassign User from Group Action
  *
- * This template provides a starting point for implementing SGNL jobs.
- * Replace this implementation with your specific business logic.
+ * Removes an Okta user from a group, revoking the permissions and access
+ * associated with that group membership.
  */
+
+/**
+ * Helper function to perform user group removal
+ * @private
+ */
+async function unassignUserFromGroup(userId, groupId, oktaDomain, authToken) {
+  // Safely encode IDs to prevent injection
+  const encodedUserId = encodeURIComponent(userId);
+  const encodedGroupId = encodeURIComponent(groupId);
+  const url = new URL(`/api/v1/groups/${encodedGroupId}/users/${encodedUserId}`, `https://${oktaDomain}`);
+
+  const authHeader = authToken.startsWith('SSWS ') ? authToken : `SSWS ${authToken}`;
+
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: {
+      'Authorization': authHeader,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return response;
+}
+
 
 export default {
   /**
-   * Main execution handler - implement your job logic here
+   * Main execution handler - removes the user from the specified group
    * @param {Object} params - Job input parameters
+   * @param {string} params.userId - The Okta user ID
+   * @param {string} params.groupId - The Okta group ID
+   * @param {string} params.oktaDomain - The Okta domain (e.g., example.okta.com)
    * @param {Object} context - Execution context with env, secrets, outputs
    * @returns {Object} Job results
    */
   invoke: async (params, context) => {
-    console.log('Starting job execution');
-    console.log(`Processing target: ${params.target}`);
-    console.log(`Action: ${params.action}`);
+    const { userId, groupId, oktaDomain } = params;
 
-    // TODO: Replace with your implementation
-    const { target, action, options = [], dry_run = false } = params;
+    console.log(`Starting Okta user group removal: user ${userId} from group ${groupId}`);
 
-    if (dry_run) {
-      console.log('DRY RUN: No changes will be made');
+    // Validate inputs
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid or missing userId parameter');
+    }
+    if (!groupId || typeof groupId !== 'string') {
+      throw new Error('Invalid or missing groupId parameter');
+    }
+    if (!oktaDomain || typeof oktaDomain !== 'string') {
+      throw new Error('Invalid or missing oktaDomain parameter');
     }
 
-    // Access environment variables
-    const environment = context.env.ENVIRONMENT || 'development';
-    console.log(`Running in ${environment} environment`);
-
-    // Access secrets securely (example)
-    if (context.secrets.API_KEY) {
-      console.log(`Using API key ending in ...${context.secrets.API_KEY.slice(-4)}`);
+    // Validate Okta API token is present
+    if (!context.secrets?.OKTA_API_TOKEN) {
+      throw new Error('Missing required secret: OKTA_API_TOKEN');
     }
 
-    // Use outputs from previous jobs in workflow
-    if (context.outputs && Object.keys(context.outputs).length > 0) {
-      console.log(`Available outputs from ${Object.keys(context.outputs).length} previous jobs`);
-      console.log(`Previous job outputs: ${Object.keys(context.outputs).join(', ')}`);
+    // Make the API request to remove user from group
+    const response = await unassignUserFromGroup(
+      userId,
+      groupId,
+      oktaDomain,
+      context.secrets.OKTA_API_TOKEN
+    );
+
+    // Handle the response
+    if (response.ok) {
+      // 204 No Content is the expected success response
+      console.log(`Successfully removed user ${userId} from group ${groupId}`);
+
+      return {
+        userId: userId,
+        groupId: groupId,
+        removed: true,
+        oktaDomain: oktaDomain,
+        removedAt: new Date().toISOString()
+      };
     }
 
-    // TODO: Implement your business logic here
-    console.log(`Performing ${action} on ${target}...`);
+    // Handle error responses
+    const statusCode = response.status;
+    let errorMessage = `Failed to remove user from group: HTTP ${statusCode}`;
 
-    if (options.length > 0) {
-      console.log(`Processing ${options.length} options: ${options.join(', ')}`);
+    try {
+      const errorBody = await response.json();
+      if (errorBody.errorSummary) {
+        errorMessage = `Failed to remove user from group: ${errorBody.errorSummary}`;
+      }
+      console.error('Okta API error response:', errorBody);
+    } catch {
+      // Response might not be JSON
+      console.error('Failed to parse error response');
     }
 
-    console.log(`Successfully completed ${action} on ${target}`);
-
-    // Return structured results
-    return {
-      status: dry_run ? 'dry_run_completed' : 'success',
-      target: target,
-      action: action,
-      options_processed: options.length,
-      environment: environment,
-      processed_at: new Date().toISOString()
-      // Job completed successfully
-    };
+    // Throw error with status code for proper error handling
+    const error = new Error(errorMessage);
+    error.statusCode = statusCode;
+    throw error;
   },
 
   /**
-   * Error recovery handler - implement error handling logic
+   * Error recovery handler - framework handles retries by default
+   * Only implement if custom recovery logic is needed
    * @param {Object} params - Original params plus error information
    * @param {Object} context - Execution context
    * @returns {Object} Recovery results
    */
   error: async (params, _context) => {
-    const { error, target } = params;
-    console.error(`Job encountered error while processing ${target}: ${error.message}`);
+    const { error, userId, groupId } = params;
+    console.error(`User group removal failed for user ${userId} from group ${groupId}: ${error.message}`);
 
-    // TODO: Implement your error recovery logic
-    // Example: Check if error is retryable and attempt recovery
-
-    // For now, just throw the error - implement your logic here
-    throw new Error(`Unable to recover from error: ${error.message}`);
+    // Framework handles retries for transient errors (429, 502, 503, 504)
+    // Just re-throw the error to let the framework handle it
+    throw error;
   },
 
   /**
-   * Graceful shutdown handler - implement cleanup logic
+   * Graceful shutdown handler - cleanup when job is halted
    * @param {Object} params - Original params plus halt reason
    * @param {Object} context - Execution context
    * @returns {Object} Cleanup results
    */
   halt: async (params, _context) => {
-    const { reason, target } = params;
-    console.log(`Job is being halted (${reason}) while processing ${target}`);
+    const { reason, userId, groupId } = params;
+    console.log(`User group removal job is being halted (${reason}) for user ${userId} from group ${groupId}`);
 
-    // TODO: Implement your cleanup logic
-    // Example: Save partial results, close connections, etc.
+    // No cleanup needed for this simple operation
+    // The DELETE request either completed or didn't
 
     return {
-      status: 'halted',
-      target: target || 'unknown',
+      userId: userId || 'unknown',
+      groupId: groupId || 'unknown',
       reason: reason,
-      halted_at: new Date().toISOString()
+      haltedAt: new Date().toISOString(),
+      cleanupCompleted: true
     };
   }
 };

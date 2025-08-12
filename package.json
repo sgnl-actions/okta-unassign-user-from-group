@@ -1,7 +1,7 @@
 {
-  "name": "@sgnl/job-template",
+  "name": "@sgnl-actions/okta-unassign-user-from-group",
   "version": "1.0.0",
-  "description": "Template for SGNL JavaScript jobs",
+  "description": "Remove an Okta user from a group",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -1,130 +1,208 @@
 import script from '../src/script.mjs';
 
-describe('Job Template Script', () => {
+describe('Okta Unassign User from Group Script', () => {
   const mockContext = {
     env: {
       ENVIRONMENT: 'test'
     },
     secrets: {
-      API_KEY: 'test-api-key-123456'
+      OKTA_API_TOKEN: 'test-okta-token-123456'
     },
-    outputs: {},
-    partial_results: {},
-    current_step: 'start'
+    outputs: {}
   };
 
+  let originalFetch;
+  let originalURL;
+  let fetchMock;
+
+  beforeAll(() => {
+    // Save original global functions
+    originalFetch = global.fetch;
+    originalURL = global.URL;
+  });
+
+  beforeEach(() => {
+    // Create a fresh mock for each test
+    fetchMock = (...args) => Promise.resolve({
+      ok: true,
+      status: 204,
+      json: async () => ({})
+    });
+    
+    global.fetch = fetchMock;
+    global.URL = class {
+      constructor(path, base) {
+        this.toString = () => `${base}${path}`;
+      }
+    };
+  });
+
+  afterEach(() => {
+    // Restore console methods
+    if (console.log.mockRestore) console.log.mockRestore();
+    if (console.error.mockRestore) console.error.mockRestore();
+  });
+
+  afterAll(() => {
+    // Restore original global functions
+    global.fetch = originalFetch;
+    global.URL = originalURL;
+  });
+
   describe('invoke handler', () => {
-    test('should execute successfully with minimal params', async () => {
+    test('should successfully remove user from group', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'create'
+        userId: 'user123',
+        groupId: 'group456',
+        oktaDomain: 'example.okta.com'
       };
+
+      // Mock successful API response (204 No Content)
+      global.fetch = () => Promise.resolve({
+        ok: true,
+        status: 204
+      });
 
       const result = await script.invoke(params, mockContext);
 
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('test-user@example.com');
-      expect(result.action).toBe('create');
-      expect(result.status).toBeDefined();
-      expect(result.processed_at).toBeDefined();
-      expect(result.options_processed).toBe(0);
+      expect(result.userId).toBe('user123');
+      expect(result.groupId).toBe('group456');
+      expect(result.removed).toBe(true);
+      expect(result.oktaDomain).toBe('example.okta.com');
+      expect(result.removedAt).toBeDefined();
     });
 
-    test('should handle dry run mode', async () => {
+    test('should throw error for missing userId', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'delete',
-        dry_run: true
+        groupId: 'group456',
+        oktaDomain: 'example.okta.com'
       };
 
-      const result = await script.invoke(params, mockContext);
-
-      expect(result.status).toBe('dry_run_completed');
-      expect(result.target).toBe('test-user@example.com');
-      expect(result.action).toBe('delete');
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing userId parameter');
     });
 
-    test('should process options array', async () => {
+    test('should throw error for missing groupId', async () => {
       const params = {
-        target: 'test-group',
-        action: 'update',
-        options: ['force', 'notify', 'audit']
+        userId: 'user123',
+        oktaDomain: 'example.okta.com'
       };
 
-      const result = await script.invoke(params, mockContext);
-
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('test-group');
-      expect(result.options_processed).toBe(3);
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing groupId parameter');
     });
 
-    test('should handle context with previous job outputs', async () => {
-      const contextWithOutputs = {
+    test('should throw error for missing oktaDomain', async () => {
+      const params = {
+        userId: 'user123',
+        groupId: 'group456'
+      };
+
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing oktaDomain parameter');
+    });
+
+    test('should throw error for missing OKTA_API_TOKEN', async () => {
+      const params = {
+        userId: 'user123',
+        groupId: 'group456',
+        oktaDomain: 'example.okta.com'
+      };
+
+      const contextWithoutToken = {
         ...mockContext,
-        outputs: {
-          'create-user': {
-            user_id: '12345',
-            created_at: '2024-01-15T10:30:00Z'
-          },
-          'assign-groups': {
-            groups_assigned: 3
-          }
-        }
+        secrets: {}
       };
 
+      await expect(script.invoke(params, contextWithoutToken))
+        .rejects.toThrow('Missing required secret: OKTA_API_TOKEN');
+    });
+
+    test('should handle API error with errorSummary', async () => {
       const params = {
-        target: 'user-12345',
-        action: 'finalize'
+        userId: 'user123',
+        groupId: 'group456',
+        oktaDomain: 'example.okta.com'
       };
 
-      const result = await script.invoke(params, contextWithOutputs);
+      global.fetch = () => Promise.resolve({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          errorCode: 'E0000007',
+          errorSummary: 'Not found: User user123 not found in group group456',
+          errorLink: 'E0000007',
+          errorId: 'oae123'
+        })
+      });
 
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('user-12345');
-      expect(result.status).toBeDefined();
+      const error = await script.invoke(params, mockContext).catch(e => e);
+      expect(error.message).toBe('Failed to remove user from group: Not found: User user123 not found in group group456');
+      expect(error.statusCode).toBe(404);
+    });
+
+    test('should handle API error without JSON body', async () => {
+      const params = {
+        userId: 'user123',
+        groupId: 'group456',
+        oktaDomain: 'example.okta.com'
+      };
+
+      global.fetch = () => Promise.resolve({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('Not JSON');
+        }
+      });
+
+      const error = await script.invoke(params, mockContext).catch(e => e);
+      expect(error.message).toBe('Failed to remove user from group: HTTP 500');
+      expect(error.statusCode).toBe(500);
     });
   });
 
   describe('error handler', () => {
-    test('should throw error by default', async () => {
+    test('should re-throw error for framework to handle', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'create',
-        error: {
-          message: 'Something went wrong',
-          code: 'ERROR_CODE'
-        }
+        userId: 'user123',
+        groupId: 'group456',
+        error: new Error('Network timeout')
       };
 
-      await expect(script.error(params, mockContext)).rejects.toThrow('Unable to recover from error: Something went wrong');
+      await expect(script.error(params, mockContext))
+        .rejects.toThrow('Network timeout');
     });
   });
 
   describe('halt handler', () => {
     test('should handle graceful shutdown', async () => {
       const params = {
-        target: 'test-user@example.com',
+        userId: 'user123',
+        groupId: 'group456',
         reason: 'timeout'
       };
 
       const result = await script.halt(params, mockContext);
 
-      expect(result.status).toBe('halted');
-      expect(result.target).toBe('test-user@example.com');
+      expect(result.userId).toBe('user123');
+      expect(result.groupId).toBe('group456');
       expect(result.reason).toBe('timeout');
-      expect(result.halted_at).toBeDefined();
+      expect(result.haltedAt).toBeDefined();
+      expect(result.cleanupCompleted).toBe(true);
     });
 
-    test('should handle halt without target', async () => {
+    test('should handle halt with missing params', async () => {
       const params = {
         reason: 'system_shutdown'
       };
 
       const result = await script.halt(params, mockContext);
 
-      expect(result.status).toBe('halted');
-      expect(result.target).toBe('unknown');
+      expect(result.userId).toBe('unknown');
+      expect(result.groupId).toBe('unknown');
       expect(result.reason).toBe('system_shutdown');
+      expect(result.cleanupCompleted).toBe(true);
     });
   });
 });
