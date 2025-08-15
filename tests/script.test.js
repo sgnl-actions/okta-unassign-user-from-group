@@ -23,12 +23,12 @@ describe('Okta Unassign User from Group Script', () => {
 
   beforeEach(() => {
     // Create a fresh mock for each test
-    fetchMock = (...args) => Promise.resolve({
+    fetchMock = (..._args) => Promise.resolve({
       ok: true,
       status: 204,
       json: async () => ({})
     });
-    
+
     global.fetch = fetchMock;
     global.URL = class {
       constructor(path, base) {
