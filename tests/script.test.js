@@ -6,7 +6,7 @@ describe('Okta Unassign User from Group Script', () => {
       ENVIRONMENT: 'test'
     },
     secrets: {
-      OKTA_API_TOKEN: 'test-okta-token-123456'
+      BEARER_AUTH_TOKEN: 'test-okta-token-123456'
     },
     outputs: {}
   };
@@ -102,7 +102,7 @@ describe('Okta Unassign User from Group Script', () => {
         .rejects.toThrow('Invalid or missing oktaDomain parameter');
     });
 
-    test('should throw error for missing OKTA_API_TOKEN', async () => {
+    test('should throw error for missing BEARER_AUTH_TOKEN', async () => {
       const params = {
         userId: 'user123',
         groupId: 'group456',
@@ -115,7 +115,7 @@ describe('Okta Unassign User from Group Script', () => {
       };
 
       await expect(script.invoke(params, contextWithoutToken))
-        .rejects.toThrow('Missing required secret: OKTA_API_TOKEN');
+        .rejects.toThrow('Missing required secret: BEARER_AUTH_TOKEN');
     });
 
     test('should handle API error with errorSummary', async () => {
