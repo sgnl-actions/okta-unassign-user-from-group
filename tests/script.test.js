@@ -6,7 +6,7 @@ describe('Okta Unassign User from Group Script', () => {
       ENVIRONMENT: 'test'
     },
     secrets: {
-      OKTA_API_TOKEN: 'test-okta-token-123456'
+      BEARER_AUTH_TOKEN: 'test-okta-token-123456'
     },
     outputs: {}
   };
@@ -54,7 +54,7 @@ describe('Okta Unassign User from Group Script', () => {
       const params = {
         userId: 'user123',
         groupId: 'group456',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       // Mock successful API response (204 No Content)
@@ -68,14 +68,14 @@ describe('Okta Unassign User from Group Script', () => {
       expect(result.userId).toBe('user123');
       expect(result.groupId).toBe('group456');
       expect(result.removed).toBe(true);
-      expect(result.oktaDomain).toBe('example.okta.com');
+      expect(result.address).toBe('https://example.okta.com');
       expect(result.removedAt).toBeDefined();
     });
 
     test('should throw error for missing userId', async () => {
       const params = {
         groupId: 'group456',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       await expect(script.invoke(params, mockContext))
@@ -85,28 +85,28 @@ describe('Okta Unassign User from Group Script', () => {
     test('should throw error for missing groupId', async () => {
       const params = {
         userId: 'user123',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       await expect(script.invoke(params, mockContext))
         .rejects.toThrow('Invalid or missing groupId parameter');
     });
 
-    test('should throw error for missing oktaDomain', async () => {
+    test('should throw error for missing address', async () => {
       const params = {
         userId: 'user123',
         groupId: 'group456'
       };
 
       await expect(script.invoke(params, mockContext))
-        .rejects.toThrow('Invalid or missing oktaDomain parameter');
+        .rejects.toThrow('No URL specified. Provide address parameter or ADDRESS environment variable');
     });
 
-    test('should throw error for missing OKTA_API_TOKEN', async () => {
+    test('should throw error for missing BEARER_AUTH_TOKEN', async () => {
       const params = {
         userId: 'user123',
         groupId: 'group456',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       const contextWithoutToken = {
@@ -115,14 +115,14 @@ describe('Okta Unassign User from Group Script', () => {
       };
 
       await expect(script.invoke(params, contextWithoutToken))
-        .rejects.toThrow('Missing required secret: OKTA_API_TOKEN');
+        .rejects.toThrow('No authentication configured');
     });
 
     test('should handle API error with errorSummary', async () => {
       const params = {
         userId: 'user123',
         groupId: 'group456',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       global.fetch = () => Promise.resolve({
@@ -145,7 +145,7 @@ describe('Okta Unassign User from Group Script', () => {
       const params = {
         userId: 'user123',
         groupId: 'group456',
-        oktaDomain: 'example.okta.com'
+        address: 'https://example.okta.com'
       };
 
       global.fetch = () => Promise.resolve({
