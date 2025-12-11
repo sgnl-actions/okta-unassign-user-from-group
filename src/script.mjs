@@ -72,14 +72,6 @@ export default {
 
     console.log(`Starting Okta user group removal: user ${userId} from group ${groupId}`);
 
-    // Validate inputs
-    if (!userId || typeof userId !== 'string') {
-      throw new Error('Invalid or missing userId parameter');
-    }
-    if (!groupId || typeof groupId !== 'string') {
-      throw new Error('Invalid or missing groupId parameter');
-    }
-
     // Get base URL using utility function
     const baseUrl = getBaseURL(resolvedParams, context);
 
