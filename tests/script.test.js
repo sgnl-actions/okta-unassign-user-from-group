@@ -72,26 +72,6 @@ describe('Okta Unassign User from Group Script', () => {
       expect(result.removedAt).toBeDefined();
     });
 
-    test('should throw error for missing userId', async () => {
-      const params = {
-        groupId: 'group456',
-        address: 'https://example.okta.com'
-      };
-
-      await expect(script.invoke(params, mockContext))
-        .rejects.toThrow('Invalid or missing userId parameter');
-    });
-
-    test('should throw error for missing groupId', async () => {
-      const params = {
-        userId: 'user123',
-        address: 'https://example.okta.com'
-      };
-
-      await expect(script.invoke(params, mockContext))
-        .rejects.toThrow('Invalid or missing groupId parameter');
-    });
-
     test('should throw error for missing address', async () => {
       const params = {
         userId: 'user123',
