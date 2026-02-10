@@ -5,13 +5,13 @@
  * associated with that group membership.
  */
 
-import { getBaseURL, getAuthorizationHeader} from '@sgnl-actions/utils';
+import { getBaseURL, createAuthHeaders} from '@sgnl-actions/utils';
 
 /**
  * Helper function to perform user group removal
  * @private
  */
-async function unassignUserFromGroup(userId, groupId, baseUrl, authHeader) {
+async function unassignUserFromGroup(userId, groupId, baseUrl, headers) {
   // Safely encode IDs to prevent injection
   const encodedUserId = encodeURIComponent(userId);
   const encodedGroupId = encodeURIComponent(groupId);
@@ -21,16 +21,12 @@ async function unassignUserFromGroup(userId, groupId, baseUrl, authHeader) {
 
   const response = await fetch(url, {
     method: 'DELETE',
-    headers: {
-      'Authorization': authHeader,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
+    headers
   });
 
   return response;
 }
-
+  
 export default {
   /**
    * Main execution handler - removes the user from the specified group
@@ -68,13 +64,13 @@ export default {
     // Get base URL using utility function
     const baseUrl = getBaseURL(params, context);
 
-    // Get authorization header
-    let authHeader = await getAuthorizationHeader(context);
+    // Get headers using utility function
+    let headers = await createAuthHeaders(context);
 
     // Handle Okta's SSWS token format - only for Bearer token auth mode
-    if (context.secrets.BEARER_AUTH_TOKEN && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      authHeader = token.startsWith('SSWS ') ? token : `SSWS ${token}`;
+    if (context.secrets.BEARER_AUTH_TOKEN && headers['Authorization'].startsWith('Bearer ')) {
+      const token = headers['Authorization'].substring(7);
+      headers['Authorization'] = token.startsWith('SSWS ') ? token : `SSWS ${token}`;
     }
 
     // Make the API request to remove user from group
@@ -82,7 +78,7 @@ export default {
       userId,
       groupId,
       baseUrl,
-      authHeader
+      headers
     );
 
     // Handle the response
