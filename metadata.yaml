@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sgnl-actions/schemas/main/metadata.schema.json
 name: okta-unassign-user-from-group
 description: Remove an Okta user from a group to revoke access
 
