@@ -5,7 +5,7 @@
  * associated with that group membership.
  */
 
-import { getBaseURL, createAuthHeaders} from '@sgnl-actions/utils';
+import { getBaseURL, createAuthHeaders } from '@sgnl-actions/utils';
 
 /**
  * Helper function to perform user group removal
@@ -26,7 +26,7 @@ async function unassignUserFromGroup(userId, groupId, baseUrl, headers) {
 
   return response;
 }
-  
+
 export default {
   /**
    * Main execution handler - removes the user from the specified group
